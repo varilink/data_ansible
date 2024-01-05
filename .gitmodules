@@ -5,5 +5,5 @@
 	path = data-app
 	url = git@github.com:varilink/data-app.git
 [submodule "data-web"]
-	path = data-web
+	path = web/data-web
 	url = git@github.com:varilink/data-web.git
