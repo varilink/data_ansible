@@ -7,3 +7,12 @@
 [submodule "data-web"]
 	path = web/data-web
 	url = git@github.com:varilink/data-web.git
+[submodule "data-int"]
+	path = data-int
+	url = git@git:data_int.git
+[submodule "tools/npm"]
+	path = tools/npm
+	url = git@github.com:varilink/tools_npm.git
+[submodule "tools/gimp"]
+	path = tools/gimp
+	url = git@github.com:varilink/tools_gimp.git
