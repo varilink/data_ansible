@@ -1,12 +1,12 @@
 [submodule "data-admin"]
 	path = data-admin
-	url = git@github.com:varilink/data-admin.git
+	url = git@github.com:varilink/data_admin.git
 [submodule "data-app"]
 	path = data-app
-	url = git@github.com:varilink/data-app.git
+	url = git@github.com:varilink/data_app.git
 [submodule "data-web"]
 	path = web/data-web
-	url = git@github.com:varilink/data-web.git
+	url = git@github.com:varilink/data_web.git
 [submodule "data-int"]
 	path = data-int
 	url = git@git:data_int.git
