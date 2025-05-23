@@ -1,0 +1,24 @@
+# ------------------------------------------------------------------------------
+# backup.yml
+# ------------------------------------------------------------------------------
+
+# Playbook for creating backups of the DATA web application on the Ansible
+# controller machine. Currently this playbook is not flexible and is hard-coded
+# to the prod1 host. It's been being used for backups of the www subdomain on
+# that host. The script needs work to make it more adaptable.
+
+---
+
+- hosts: prod1
+
+  tasks:
+
+    - ansible.builtin.synchronize:
+        mode: pull
+        src: /var/local/www-data/
+        dest: backups/{{ subdomain }}/{{ backup_date }}
+        rsync_opts:
+          - '--chmod=D755'
+          - '--chmod=F644'
+      vars:
+        backup_date: "{{ ansible_date_time.date }}"
