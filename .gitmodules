@@ -1,18 +1,27 @@
-[submodule "data_admin"]
-	path = admin/data_admin
-	url = git@github.com:varilink/data_admin.git
-[submodule "data_app"]
-	path = app/data_app
-	url = git@github.com:varilink/data_app.git
+# DATA repositories
+
+[submodule "admin/data_admin"]
+    path = admin/data_admin
+    url = git@github.com:varilink/data_admin.git
+
+[submodule "app/data_app"]
+    path = app/data_app
+    url = git@github.com:varilink/data_app.git
+
 [submodule "data_int"]
-	path = data_int
-	url = git@git:data_int.git
-[submodule "data_web"]
-	path = web/data_web
-	url = git@github.com:varilink/data_web.git
+    path = data_int
+    url = git@git:data_int.git
+
+[submodule "app_web/data_web"]
+    path = app_web/data_web
+    url = git@github.com:varilink/data_web.git
+
+# Varilink tools
+
 [submodule "tools/npm"]
-	path = tools/npm
-	url = git@github.com:varilink/tools_npm.git
+    path = tools/npm
+    url = git@github.com:varilink/tools_npm.git
+
 [submodule "tools/gimp"]
-	path = tools/gimp
-	url = git@github.com:varilink/tools_gimp.git
+    path = tools/gimp
+    url = git@github.com:varilink/tools_gimp.git
