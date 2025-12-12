@@ -3,22 +3,57 @@
 # ------------------------------------------------------------------------------
 
 # Playbook for creating backups of the DATA web application on the Ansible
-# controller machine. Currently this playbook is not flexible and is hard-coded
-# to the prod1 host. It's been being used for backups of the www subdomain on
-# that host. The script needs work to make it more adaptable.
+# controller machine. Currently the combination of subdomains and hosts for
+# those subdomains is hard coded in this script. Perhaps this could be derived
+# from the Ansible group and host vars configured instead.
 
 ---
 
-- hosts: prod1
+- hosts: gateway, prod1
+
+  vars:
+    backup_date: "{{ ansible_date_time.date }}"
+
+  vars_prompt:
+    - name: subdomain
+      prompt: "Enter the subdomain to backup"
+      private: false
 
   tasks:
 
-    - ansible.builtin.synchronize:
-        mode: pull
-        src: /var/local/www-data/
-        dest: backups/{{ subdomain }}/{{ backup_date }}
-        rsync_opts:
-          - '--chmod=D755'
-          - '--chmod=F644'
-      vars:
-        backup_date: "{{ ansible_date_time.date }}"
+    - name: Ensure directory for backups from the subdomain is present
+      ansible.builtin.file:
+        path: backups/{{ subdomain }}
+        state: directory
+      delegate_to: localhost
+      when: subdomain in [ 'test', 'www' ]
+
+    - block:
+
+        - ansible.builtin.synchronize:
+            mode: pull
+            src: /var/local/www-data/{{ item }}
+            dest: backups/www/{{ backup_date }}/
+            rsync_opts:
+              - '--chmod=D755'
+              - '--chmod=F644'
+          loop:
+            - derbyartsandtheatre.db
+            - upload
+
+      when: subdomain == 'www' and inventory_hostname == 'prod1'
+
+    - block:
+
+        - ansible.builtin.synchronize:
+            mode: pull
+            src: "{{ item }}"
+            dest: backups/test/{{ backup_date }}/
+            rsync_opts:
+              - '--chmod=D755'
+              - '--chmod=F644'
+          loop:
+            - /var/www/test.{{ domain }}/database/derbyartsandtheatre.db
+            - /var/www/test.{{ domain }}/html/upload
+
+      when: subdomain == 'test' and inventory_hostname == 'gateway'
