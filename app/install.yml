@@ -1,0 +1,120 @@
+# ------------------------------------------------------------------------------
+# app/install.yml
+# ------------------------------------------------------------------------------
+# Install the DATA app service.
+
+---
+
+# Load variables containing lists of APT and CPAN packages required.
+
+- name: Load list of APT packages required by the app service
+  ansible.builtin.set_fact:
+    deb_pkgs: "\
+      {{ lookup('file', './data_app/packages/deb.yml') | from_yaml }}"
+
+- name: Load first list of CPAN packages required by the app service
+  ansible.builtin.set_fact:
+    cpan1_pkgs: "\
+      {{ lookup('file', './data_app/packages/cpan1.yml') | from_yaml }}"
+
+- name: Load second list of CPAN packages required by the app service
+  ansible.builtin.set_fact:
+    cpan2_pkgs: "\
+      {{ lookup('file', './data_app/packages/cpan2.yml') | from_yaml }}"
+
+- block:
+
+    # Install packages
+
+    - name: Install the app service's required APT packages
+      ansible.builtin.apt:
+        pkg: "{{ deb_pkgs }}"
+        install_recommends: false
+
+    - name: Install the first set of CPAN packages
+      community.general.cpanm:
+        pkg: "{{ item }}"
+        installdeps: false
+      loop: "{{ cpan1_pkgs }}"
+
+    - name: Install the second set of CPAN packages
+      community.general.cpanm:
+        pkg: "{{ item }}"
+        installdeps: false
+      loop: "{{ cpan2_pkgs }}"
+
+    # Install the Perl based DATA web application
+
+    - name: Synchronize the DATA web application's Perl Modules
+      ansible.builtin.synchronize:
+        src: app/data_app/pm/
+        dest: /usr/local/lib/site_perl/DATA/
+        rsync_opts:
+          - "--exclude=README.md"
+          - "--chown=root:root"
+      notify: Restart uwsgi
+
+    - name: Copy the applications PSGI script
+      ansible.builtin.copy:
+        src: data_app/psgi/data-app.psgi
+        dest: /usr/local/sbin/data-app.psgi
+      notify: Restart uwsgi
+
+    - name: Synchronise the Template Toolkit template files
+      ansible.builtin.synchronize:
+        src: app/data_app/tt/
+        dest: "/var/www/{{ subdomain }}.{{ domain }}/tt/"
+        rsync_opts:
+          - "--exclude=duplicates.sh"
+          - "--chown=root:root"
+      notify: Restart uwsgi
+
+    # App configuration
+
+    - name: Make the directory to hold the web application configuration
+      ansible.builtin.file:
+        path: "{{ app_conf_dir }}"
+        state: directory
+
+    - name: Copy the app configuration
+      ansible.builtin.copy:
+        src: data_app/conf/
+        dest: "{{ app_conf_dir }}/app/"
+
+    - name: Template out master config file
+      ansible.builtin.template:
+        src: env.cfg.j2
+        dest: "{{ app_conf_dir }}/{{ subdomain }}.cfg"
+
+    # uWSGI
+
+    - name: Configure the DATA uWSGI application
+      ansible.builtin.template:
+        src: data-app.ini.j2
+        dest: /etc/uwsgi/apps-available/{{ server_name }}.ini
+      notify: Restart uwsgi
+
+    - name: Enable the DATA uWSGI application
+      ansible.builtin.file:
+        src: /etc/uwsgi/apps-available/{{ server_name }}.ini
+        dest: /etc/uwsgi/apps-enabled/{{ server_name }}.ini
+        state: link
+      notify: Restart uwsgi
+
+    # Data directories
+
+    - name: Make the /cookies directory
+      ansible.builtin.file:
+        path: /cookies/
+        state: directory
+        owner: www-data
+        group: www-data
+
+    - name: Make the database directory
+      ansible.builtin.file:
+        path: /var/www/{{ subdomain }}.{{ domain }}/database/
+        state: directory
+        owner: www-data
+        group: www-data
+
+  become: yes

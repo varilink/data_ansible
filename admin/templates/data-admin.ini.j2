@@ -1,0 +1,7 @@
+[uwsgi]
+; Django for access to the admin interface
+socket = /run/uwsgi/django-admin.sock
+chdir = /var/www/{{ admin_server_name }}/django/
+module = data.wsgi
+plugins = python3
+virtualenv = /var/www/{{ admin_server_name }}/.venv

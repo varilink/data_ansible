@@ -1,0 +1,52 @@
+{#
+--------------------------------------------------------------------------------
+admin_web/templates/nginx-site.conf.j2
+--------------------------------------------------------------------------------
+-#}
+
+{% set server %}{% include 'nginx-site-server.conf.j2' %}{% endset %}
+{% set locations %}{% include 'nginx-site-locations.conf.j2' %}{% endset -%}
+
+server {
+
+    listen 80;
+    listen [::]:80;
+
+{{ server | indent(4, true) }}
+
+{% if admin_server_uses_ssl is defined and admin_server_uses_ssl %}
+    location /.well-known/acme-challenge/ {
+        root      /var/www/{{ admin_server_name }}/html;
+        try_files $uri =404;
+        break;
+    }
+{% endif %}
+
+{% if admin_server_uses_ssl is defined and
+      admin_server_uses_ssl and
+      certificate_installed %}
+    return 301 https://{{ admin_server_name }}$request_uri;
+{% else %}
+{{ locations | indent(4, true) }}
+{% endif %}
+
+}
+
+{% if admin_server_uses_ssl is defined and
+      admin_server_uses_ssl and
+      certificate_installed %}
+
+server {
+
+    listen 443;
+    listen [::]:443;
+    ssl_certificate /etc/letsencrypt/live/
+    {{- admin_server_name }}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/
+    {{- admin_server_name }}/privkey.pem;
+
+{{ locations | indent(4, true) }}
+
+}
+
+{% endif %}

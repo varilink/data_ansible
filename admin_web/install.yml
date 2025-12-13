@@ -1,0 +1,71 @@
+# ------------------------------------------------------------------------------
+# admin_web/install.yml
+# ------------------------------------------------------------------------------
+# Install the DATA admin web service, which proxies for the data admin service.
+
+- block:
+
+    - name: Install the Nginx packages
+      ansible.builtin.apt:
+        install_recommends: false
+        pkg:
+          - nginx
+
+    - block:
+
+        - name: Determine if a certificate is installed
+          ansible.builtin.shell: >-
+            certbot certificates |
+            grep 'Certificate Name: {{ admin_server_name }}'
+          register: certbot_certificates
+          failed_when: "\
+            certbot_certificates.rc != 0 and certbot_certificates.rc != 1"
+          changed_when: false
+
+        - name: Set variable that captures whether a certificate is installed
+          set_fact:
+            certificate_installed: |-
+              {% if certbot_certificates.rc == 0 %}
+              true
+              {%- else %}
+              false
+              {%- endif %}
+
+      when: admin_server_uses_ssl is defined and admin_server_uses_ssl
+
+    - name: Make the site available to Nginx
+      ansible.builtin.template:
+        src: nginx-site.conf.j2
+        dest: /etc/nginx/sites-available/{{ admin_server_name }}.conf
+      notify: Restart nginx
+
+    - name: Enable the site for Nginx
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/{{ admin_server_name }}.conf
+        dest: /etc/nginx/sites-enabled/{{ admin_server_name }}.conf
+        state: link
+      notify: Restart nginx
+
+    - block:
+
+        - name: Flush handlers to make site immediately available
+          ansible.builtin.meta: flush_handlers
+
+        - name: Install certbot certificate
+          ansible.builtin.command: |-
+            certbot -n certonly
+            --webroot -w /var/www/{{ admin_server_name }}/html/
+            -d {{ admin_server_name }}
+            {%- if subdomain == 'www' %} -d {{ domain }}{% endif %}
+
+        - name: Make the site available to Nginx
+          ansible.builtin.template:
+            src: nginx-site.conf.j2
+            dest: /etc/nginx/sites-available/{{ admin_server_name }}.conf
+          notify: Restart nginx
+
+      when: >-
+        admin_server_uses_ssl is defined and admin_server_uses_ssl and
+        not certificate_installed
+
+  become: yes

@@ -1,0 +1,8 @@
+{#
+--------------------------------------------------------------------------------
+admin_web/templates/nginx_site_server.conf.j2
+--------------------------------------------------------------------------------
+#}
+server_name {{ admin_server_name }};
+access_log /var/log/nginx/{{ admin_server_name }}-access.log;
+error_log /var/log/nginx/{{ admin_server_name }}-error.log;

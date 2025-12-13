@@ -1,0 +1,18 @@
+{#
+--------------------------------------------------------------------------------
+app_web/templates/nginx_site.conf.j2
+--------------------------------------------------------------------------------
+#}
+server {
+
+    listen      80;
+    listen      [::]:80;
+    server_name {{ subdomain }}.{{ domain }};
+
+    access_log /var/log/nginx/{{ subdomain }}.{{ domain }}-access.log;
+    error_log /var/log/nginx/{{ subdomain }}.{{ domain }}-error.log;
+
+{% set locations %}{% include "nginx_site_common.conf.j2" %}{% endset %}
+{{ locations | indent(4, true) }}
+
+}

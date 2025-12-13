@@ -1,0 +1,47 @@
+# ------------------------------------------------------------------------------
+# app_web/install.yml
+# ------------------------------------------------------------------------------
+# Install the DATA app web service, which proxies for the data app service.
+
+- block:
+
+    - name: Create server name directory for web service
+      ansible.builtin.file:
+        path: /var/www/{{ server_name }}/
+        state: directory
+
+    - name: Create html directory for web service
+      ansible.builtin.file:
+        path: /var/www/{{ server_name }}/html/
+        state: directory
+        owner: www-data
+        group: www-data
+
+    - name: Synchronize web service client asset files
+      ansible.builtin.synchronize:
+        src: app_web/data_web/dist/
+        dest: /var/www/{{ subdomain }}.{{ domain }}/html/assets/
+        rsync_opts:
+          - "--exclude=.gitignore"
+          - "--chown=www-data:www-data"
+
+    - name: Install the Nginx packages
+      ansible.builtin.apt:
+        install_recommends: false
+        pkg:
+          - nginx
+
+    - name: Make the site available to Nginx
+      ansible.builtin.template:
+        src: nginx_site.conf.j2
+        dest: "/etc/nginx/sites-available/{{ subdomain }}.{{ domain }}.conf"
+      notify: Restart nginx
+
+    - name: Enable the site for Nginx
+      ansible.builtin.file:
+        src: "/etc/nginx/sites-available/{{ subdomain }}.{{ domain }}.conf"
+        dest: "/etc/nginx/sites-enabled/{{ subdomain }}.{{ domain }}.conf"
+        state: link
+      notify: Restart nginx
+
+  become: yes

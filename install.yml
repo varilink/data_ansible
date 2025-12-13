@@ -1,0 +1,163 @@
+# ------------------------------------------------------------------------------
+# install.yml
+# ------------------------------------------------------------------------------
+
+# Install an instance of the DATA web application across one or more hosts.
+
+---
+
+- hosts: gateway, prod1
+
+  handlers:
+
+    - name: Restart dnsmasq
+      ansible.builtin.service:
+        name: dnsmasq
+        state: restarted
+      become: yes
+      delegate_to: hub
+
+    - name: Restart nginx
+      ansible.builtin.service:
+        name: nginx
+        state: restarted
+      become: yes
+
+    - name: Restart uwsgi
+      ansible.builtin.service:
+        name: uwsgi
+        state: restarted
+      become: yes
+
+  tasks:
+
+    - block:
+
+        - name: Assert that there is exactly one host in this play
+          ansible.builtin.assert:
+            that:
+              - play_hosts | length == 1
+            fail_msg: >-
+              This playbook must be run with --limit set such that there is one
+              and only one host in this play
+            success_msg: Exactly one host is included in this play
+          run_once: yes
+
+        - name: >-
+            Assert that subdomains variable is defined and is a dictionary
+            variable
+          ansible.builtin.assert:
+            that:
+              - subdomains is defined
+              - subdomains is mapping
+            fail_msg: "\
+              subdomains must be defined and must be a dictionary variable"
+            success_msg: "\
+              The subdomains variable is defined and is a dictionary variable"
+
+        - name: Set subdomain to the single subdomain configured for the host
+          ansible.builtin.set_fact:
+            subdomain: "{{ subdomains.keys() | first }}"
+
+        - block:
+
+            - name: >-
+                Prompt the user to select from multiple subdomains configured
+                for the host
+              ansible.builtin.pause:
+                prompt: "\
+                  Enter the required subdomain from {{ subdomains.keys() }}"
+              register: subdomain_prompt
+              until: >-
+                subdomain_prompt.user_input and
+                subdomain_prompt.user_input in subdomains.keys()
+              retries: 10
+              delay: 0
+
+            - name: "\
+                Assert subdomain selected correctly from subdomains available"
+              ansible.builtin.assert:
+                that:
+                  - subdomain_prompt.user_input in subdomains.keys()
+                fail_msg: "\
+                  Failed to select subdomain from those configured for the host"
+                success_msg: "Subdomain {{ subdomain }} selected"
+
+            - name: Save the selected subdomain
+              ansible.builtin.set_fact:
+                subdomain: "{{ subdomain_prompt.user_input }}"
+
+          when: subdomains.keys() | length > 1
+
+        - name: Set facts for the selected subdomain
+          ansible.builtin.set_fact:
+            server_name: "{{ subdomain }}.{{ domain }}"
+            admin_server_name: "admin\
+              {% if subdomain != 'www' %}{{ '.' + subdomain }}{% endif %}\
+              {{ '.' + domain }}"
+
+        - name: Set facts for the selected subdomain
+          ansible.builtin.set_fact:
+            "{{ item.key }}": "{{ item.value }}"
+          loop: "{{ subdomains[subdomain] | dict2items }}"
+
+      tags: always
+
+    - ansible.builtin.import_tasks: 
+        file: ./admin/install.yml
+      tags: admin
+
+    - block:
+
+        - name: Add a dynamic DNS entry for the admin web service
+          ansible.builtin.import_role:
+            name: dynamic_dns
+            tasks_from: create-record
+          delegate_to: gateway
+          delegate_facts: true
+          vars:
+            domain_name: "{{ domain }}"
+            dns_record_hostname: "admin\
+              {% if subdomain != 'www' %}{{ '.' + subdomain }}{% endif %}"
+
+        - ansible.builtin.import_tasks:
+            file: ./admin_web/install.yml
+
+        - name: Add DNS record for the admin web service
+          ansible.builtin.lineinfile:
+            path: /etc/addn-hosts
+            line: "{{ ansible_default_ipv4.address }} {{ admin_server_name }}"
+          notify: Restart dnsmasq
+          delegate_to: hub
+          become: yes
+
+      tags: admin_web
+
+    - ansible.builtin.import_tasks:
+        file: ./app/install.yml
+      tags: app
+
+    - block:
+
+        - name: Add a dynamic DNS entry for the app web service
+          ansible.builtin.import_role:
+            name: dynamic_dns
+            tasks_from: create-record
+          delegate_to: gateway
+          delegate_facts: true
+          vars:
+            domain_name: "{{ domain }}"
+            dns_record_hostname: "{{ subdomain }}"
+
+        - ansible.builtin.import_tasks:
+            file: ./app_web/install.yml
+
+        - name: Add DNS record for the app web service
+          ansible.builtin.lineinfile:
+            path: /etc/addn-hosts
+            line: "{{ ansible_default_ipv4.address }} {{ server_name }}"
+          notify: Restart dnsmasq
+          delegate_to: hub
+          become: yes
+
+      tags: app_web

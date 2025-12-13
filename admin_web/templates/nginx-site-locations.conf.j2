@@ -1,0 +1,14 @@
+{#
+--------------------------------------------------------------------------------
+admin_web/templates/nginx_site_locations.conf.j2
+--------------------------------------------------------------------------------
+#}
+location / {
+    include uwsgi_params;
+    uwsgi_pass unix:/run/uwsgi/django-admin.sock;
+    uwsgi_param Host $host;
+}
+
+location /assets/ {
+    alias /var/www/{{ admin_server_name }}/html/assets/;
+}

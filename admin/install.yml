@@ -1,0 +1,183 @@
+# ------------------------------------------------------------------------------
+# admin/install.yml
+# ------------------------------------------------------------------------------
+# Install the DATA admin service, which uses the Django admin facility.
+
+---
+
+- block:
+
+    - name: Install the admin service's required APT packages
+      ansible.builtin.apt:
+        install_recommends: false
+        pkg:
+          - python3
+          - python3-pip
+          - python3-venv
+          - rsync
+          - uwsgi
+          - uwsgi-plugin-python3
+
+    - name: Create the directory to hold client artefacts for the site
+      ansible.builtin.file:
+        path: /var/www/{{ admin_server_name }}/
+        state: directory
+
+    - name: Create the www-data user
+      ansible.builtin.user:
+        name: www-data
+        home: /var/www
+
+    - name: Create the HTML directory
+      ansible.builtin.file:
+        path: /var/www/{{ admin_server_name }}/html/
+        state: directory
+        owner: www-data
+        group: www-data
+
+    - name: Install the project's Python virtual environment
+      ansible.builtin.pip:
+        name:
+          - ansible-core==2.19.2
+          - django==5.2.6
+          - python-dateutil==2.9.0.post0
+        virtualenv: /var/www/{{ admin_server_name }}/.venv
+        virtualenv_command: python3 -m venv
+
+    - name: Create the Django directory
+      ansible.builtin.file:
+        path: /var/www/{{ admin_server_name }}/django/
+        state: directory
+
+    - name: Start the DATA Django project
+      ansible.builtin.shell: |-
+        source .venv/bin/activate
+        django-admin startproject data django
+      args:
+        chdir: /var/www/{{ admin_server_name }}/
+        creates: /var/www/{{ admin_server_name }}/django/data/
+        executable: /bin/bash
+
+    - name: Start the WhatsOn Django application
+      ansible.builtin.shell: |-
+        source ../.venv/bin/activate
+        python3 manage.py startapp whatson
+      args:
+        chdir: /var/www/{{ admin_server_name }}/django/
+        creates: /var/www/{{ admin_server_name }}/django/whatson/
+        executable: /bin/bash
+
+    - name: Copy various project and application Django configuration files
+      ansible.builtin.copy:
+        src: data_admin/{{ item }}
+        dest: /var/www/{{ admin_server_name }}/django/{{ item }}
+      loop:
+        - data/urls.py
+        - whatson/admin.py
+        - whatson/models.py
+        - whatson/routers.py
+
+    - block:
+
+        - name: Generate a secret key
+          ansible.builtin.shell: |-
+            source .venv/bin/activate
+            python -c '
+            from django.core.management.utils import get_random_secret_key;
+            print(get_random_secret_key())'
+          args:
+            chdir: /var/www/{{ admin_server_name }}/
+            executable: /bin/bash
+          register: secret_key_result
+          changed_when: false
+
+        - name: Set admin_secret_key to generated secret key result value
+          ansible.builtin.set_fact:
+            admin_secret_key: secret_key_result.stdout
+
+      when: admin_secret_key is not defined
+
+    - name: Template out the project settings file
+      ansible.builtin.template:
+        src: data_admin/data/settings.py.j2
+        dest: /var/www/{{ admin_server_name }}/django/data/settings.py
+      vars:
+        admin_allowed_hosts: ["'{{ admin_server_name }}'"]
+        admin_csrf_trusted_origins:
+          - "'http://{{ admin_server_name }}'"
+          - "'https://{{ admin_server_name }}'"
+        admin_static_url: /assets/
+      notify: Restart uwsgi
+
+    - name: Create the directory to hold the database
+      ansible.builtin.file:
+        path: /var/www/{{ admin_server_name }}/database/
+        state: directory
+        group: www-data
+        owner: www-data
+
+    - block:
+
+        - name: Create the core database
+          ansible.builtin.shell: |-
+            source ../.venv/bin/activate
+            python3 manage.py migrate --database core_db
+          args:
+            chdir: /var/www/{{ admin_server_name }}/django/
+            creates: /var/www/{{ admin_server_name }}/database/core.db
+            executable: /bin/bash
+
+        - block:
+
+            - name: Check if Django superuser exists
+              ansible.builtin.shell: |
+                source ../.venv/bin/activate
+                python3 manage.py shell -c "
+                from django.contrib.auth import get_user_model;
+                User = get_user_model();
+                print(User.objects.filter(username='admin').exists())"
+              args:
+                chdir: /var/www/{{ admin_server_name }}/django/
+                executable: /bin/bash
+              register: superuser_exists
+              changed_when: false
+
+            - name: Create the superuser
+              ansible.builtin.shell: |-
+                source ../.venv/bin/activate
+                export DJANGO_SUPERUSER_USERNAME={{ admin_superuser_username }}
+                export DJANGO_SUPERUSER_EMAIL={{ admin_superuser_email }}
+                export DJANGO_SUPERUSER_PASSWORD={{ admin_superuser_password }}
+                python3 manage.py createsuperuser --database core_db --noinput
+              args:
+                chdir: /var/www/{{ admin_server_name }}/django/
+                executable: /bin/bash
+              when: superuser_exists.stdout.strip() == "False"
+
+            - name: Collect the Django static artefacts
+              ansible.builtin.shell: |-
+                source ../.venv/bin/activate
+                python3 manage.py collectstatic --noinput
+              args:
+                chdir: /var/www/{{ admin_server_name }}/django/
+                creates: /var/www/{{ admin_server_name }}/html/assets/
+                executable: /bin/bash
+
+      become_user: www-data
+
+    # uWSGI
+
+    - name: Make the uWSGI application available
+      ansible.builtin.template:
+        src: data-admin.ini.j2
+        dest: /etc/uwsgi/apps-available/{{ admin_server_name }}.ini
+      notify: Restart uwsgi
+
+    - name: Enable the uWSGI application module
+      ansible.builtin.file:
+        src: /etc/uwsgi/apps-available/{{ admin_server_name }}.ini
+        dest: /etc/uwsgi/apps-enabled/{{ admin_server_name }}.ini
+        state: link
+      notify: Restart uwsgi
+
+  become: yes
