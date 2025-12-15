@@ -1,0 +1,136 @@
+# ------------------------------------------------------------------------------
+# restore.yml
+# ------------------------------------------------------------------------------
+
+---
+
+- hosts: gateway, prod1
+
+  vars:
+    source: backups/www/2025-10-07/
+
+  tasks:
+
+    - ansible.builtin.import_tasks: validation.yml
+
+    - name: Find the subdomains that we have backups for
+      ansible.builtin.find:
+        paths: "{{ playbook_dir }}/backups/"
+        file_type: directory
+        recurse: false
+      register: found_subdomains
+      delegate_to: localhost
+      run_once: true
+
+    - name: Set a fact for the subdomains that we have backups for
+      ansible.builtin.set_fact:
+        backup_subdomains: >-
+          {{
+            found_subdomains.files |
+            map(attribute='path') |
+            map('basename') |
+            sort
+          }}
+
+    - name: Prompt for the subdomain of the backup that we want to use
+      ansible.builtin.pause:
+        prompt: |-
+          Subdomains that we have backups for:
+          {% for d in backup_subdomains %}
+          {{ loop.index }}. {{ d }}
+          {% endfor %}
+          Enter the number of the subdomain that you want to restore from
+      register: backup_subdomain_choice
+
+    - name: Validate that the entered subdomain choice is valid
+      ansible.builtin.assert:
+        that:
+          - backup_subdomain_choice.user_input is match('^[0-9]+$')
+          - (backup_subdomain_choice.user_input | int) >= 1
+          - >-
+              (backup_subdomain_choice.user_input | int) <=
+              (backup_subdomains | length)
+        fail_msg: >-
+          Invalid input, a number between 1 and {{ backup_subdomains | length }}
+          is required.
+
+    - name: Set a fact for the chosen backup subdomain
+      ansible.builtin.set_fact:
+        backup_subdomain: >-
+          {{
+            backup_subdomains[(backup_subdomain_choice.user_input | int) -1]
+          }}
+
+    - name: Find the dates that we have backups for the chosen backup subdomain
+      ansible.builtin.find:
+        paths: "{{ playbook_dir }}/backups/{{ backup_subdomain }}/"
+        file_type: directory
+        recurse: false
+      register: found_dates
+      delegate_to: localhost
+      run_once: true
+
+    - name: Set a fact for the dates that we have backups for
+      ansible.builtin.set_fact:
+        backup_dates: >-
+          {{
+            found_dates.files |
+            map(attribute='path') |
+            map('basename') |
+            sort
+          }}
+
+    - name: Prompt for the date of the backup that we want to use
+      ansible.builtin.pause:
+        prompt: |-
+          Dates that we have backups for:
+          {% for d in backup_dates %}
+          {{ loop.index }}. {{ d }}
+          {% endfor %}
+          Enter the number of the date that you want to restore from
+      register: backup_date_choice
+
+    - name: Validate that the entered date choice is valid
+      ansible.builtin.assert:
+        that:
+          - backup_date_choice.user_input is match('^[0-9]+$')
+          - (backup_date_choice.user_input | int) >= 1
+          - >-
+              (backup_date_choice.user_input | int) <=
+              (backup_dates | length)
+        fail_msg: >-
+          Invalid input, a number between 1 and {{ backup_dates | length }}
+          is required.
+
+    - name: Set a fact for the chosen backup date
+      ansible.builtin.set_fact:
+        backup_date: >-
+          {{
+            backup_dates[(backup_date_choice.user_input | int) -1]
+          }}
+
+    - block:
+
+        - name: Restore uploaded images to the destination
+          ansible.builtin.synchronize:
+            src: "\
+              {{ playbook_dir }}/backups/{{ backup_subdomain }}/\
+              {{ backup_date }}/upload/"
+            dest: "{{ dest }}/html/upload/"
+            rsync_opts:
+              - '--chown=www-data:www-data'
+              - '--chmod=D755'
+              - '--chmod=F644'
+
+        - name: Restore DATA web application database to the destination
+          ansible.builtin.copy:
+            src: "\
+              {{ playbook_dir }}/backups/{{ backup_subdomain }}/\
+              {{ backup_date }}/derbyartsandtheatre.db"
+            dest: "{{ dest }}/database/"
+            owner: www-data
+            group: www-data
+
+      become: yes
+      vars:
+        dest: /var/www/{{ subdomain }}.{{ domain }}/
