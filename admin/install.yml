@@ -77,6 +77,13 @@
         - whatson/models.py
         - whatson/routers.py
 
+    - name: Synchronise the WhatsOn application's migrations
+      ansible.builtin.synchronize:
+        src: admin/data_admin/whatson/migrations/
+        dest: /var/www/{{ admin_server_name }}/django/whatson/migrations/
+        rsync_opts:
+          - "--chown=root:root"
+
     - block:
 
         - name: Generate a secret key
