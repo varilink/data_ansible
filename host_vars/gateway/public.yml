@@ -1,0 +1,10 @@
+subdomains:
+
+  test:
+
+    admin_secret_key: "{{ private_subdomains['test'].admin_secret_key }}"
+    admin_superuser_username: "{{ private_admin_superuser_username }}"
+    admin_superuser_email: "{{ admin_superuser_email }}"
+    admin_superuser_password: "\
+      {{ private_subdomains['test'].admin_superuser_password }}"
+    admin_server_uses_ssl: True

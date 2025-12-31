@@ -1,0 +1,7 @@
+domain: derbyartsandtheatre.org.uk
+
+webmin: admin@{{ domain }}
+admin_superuser_email: "{{ webmin }}"
+
+app_conf_dir: /usr/local/etc/data/
+data_to_override_email: "{{ webmin }}"
