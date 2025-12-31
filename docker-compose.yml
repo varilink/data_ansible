@@ -1,0 +1,29 @@
+# ------------------------------------------------------------------------------
+# docker-compose.yml
+# ------------------------------------------------------------------------------
+
+# Overrides for the Docker Compose based Varilink Computing Ltd tools that are
+# used by this project.
+
+---
+
+services:
+
+  gimp:
+
+    working_dir: /data-gimp/
+
+    volumes:
+      - ./app_web/data_web/gimp/:/data-gimp/
+      - ./app_web/data_web/media/website/:/website/
+      - ./app_web/data_web/media/other/:/other/
+
+  npm:
+
+    volumes:
+      - ./app_web/data_web/:/npm/
+
+  npx:
+
+    volumes:
+      - ./app_web/data_web/:/npm/
