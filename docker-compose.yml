@@ -9,6 +9,11 @@
 
 services:
 
+  ansible-playbook:
+    volumes:
+      - ./backup.yml:/home/${USERNAME}/backup.yml:ro
+      - ./backups/:/home/${USERNAME}/backups/
+
   gimp:
 
     working_dir: /data-gimp/
