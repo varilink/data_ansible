@@ -1,22 +1,32 @@
 # DATA repositories
 
-[submodule "admin-app/data_admin"]
-    path = admin-app/data_admin
-    url = git@github.com:varilink/data_admin.git
-
 [submodule "app/data_app"]
     path = app/data_app
     url = git@github.com:varilink/data_app.git
+
+[submodule "web/data_web"]
+	path = web/data_web
+    url = git@github.com:varilink/data_web.git
 
 [submodule "data_int"]
     path = data_int
     url = git@git:data_int.git
 
-[submodule "app_web/data_web"]
-    path = app_web/data_web
-    url = git@github.com:varilink/data_web.git
+[submodule "admin-app/data_admin"]
+    path = admin-app/data_admin
+    url = git@github.com:varilink/data_admin.git
+
+# Varilink Ansible libraries
+
+[submodule "roles"]
+    path = roles
+    url = git@github.com:varilink/libraries_ansible-roles.git
 
 # Varilink tools
+
+[submodule "tools/ansible"]
+    path = tools/ansible
+    url = git@github.com:varilink/tools_ansible.git
 
 [submodule "tools/npm"]
     path = tools/npm
@@ -25,9 +35,3 @@
 [submodule "tools/gimp"]
     path = tools/gimp
     url = git@github.com:varilink/tools_gimp.git
-[submodule "roles"]
-    path = roles
-    url = git@github.com:varilink/libraries_ansible-roles.git
-[submodule "tools/ansible"]
-    path = tools/ansible
-    url = git@github.com:varilink/tools_ansible.git
